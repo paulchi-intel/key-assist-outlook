@@ -1,6 +1,7 @@
 # key-assist-outlook
 
-An Outlook VBA macro that integrates **ExpertGPT** (Intel's internal AI gateway supporting OpenAI and Anthropic models) directly into Microsoft Outlook.  
+An Outlook VBA macro that brings AI-powered email assistance directly into Microsoft Outlook.  
+Supports both **ExpertGPT** and **GNAI** — Intel's internal AI gateways with OpenAI and Anthropic models.  
 Select any email and trigger AI actions from the macro menu — no browser switching required.
 
 ---
@@ -29,8 +30,11 @@ Select any email and trigger AI actions from the macro menu — no browser switc
 
 ### ⚙️ Configuration
 - GUI settings form (built with PowerShell/WinForms, no extra dependencies)
-- Enter your **ExpertGPT API key** (`pak_…`)
-- Click **Load Models** to fetch available OpenAI and Anthropic models with quota info
+- Supports two Intel AI gateways:
+  - **ExpertGPT** — enter a `pak_` API key; model list shows quota usage `(used/limit)`
+  - **GNAI** — enter any non-`pak_` key; model list shows clean names without quota
+- Models load automatically when you tab out of the API Key field, or click **Load Models**
+- If the model API is unreachable, a built-in fallback list is shown
 - Selected model and key are stored securely in the Windows Registry via `SaveSetting`
 
 ---
@@ -60,9 +64,10 @@ Select any email and trigger AI actions from the macro menu — no browser switc
 ## Configuration
 
 | Setting | Details |
-|---------|---------|
-| **API Key** | ExpertGPT key (starts with `pak_`) **or** GNAI key. Stored in Windows Registry. |
-| **Model** | Selected from live model list fetched from the matching gateway. Supports OpenAI and Anthropic (Claude) models. |
+|---------|----------|
+| **API Key** | ExpertGPT key (starts with `pak_`) **or** GNAI key (any other value). Stored in Windows Registry. |
+| **Model** | Fetched live from the matching gateway. Falls back to a built-in list if the API is unreachable. Supports OpenAI and Anthropic (Claude) models. |
+| **Quota display** | Shown as `model-name (used/limit)` for ExpertGPT keys only. GNAI shows plain model names. |
 | **FAQ Folder** | Default path: `My Folders\FAQ`. Change `FAQ_FOLDER_PATH` constant in the source. |
 | **Timeout** | OpenAI: 20 s · Anthropic: 120 s |
 
