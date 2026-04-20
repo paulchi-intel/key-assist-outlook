@@ -38,7 +38,9 @@ Select any email and trigger AI actions from the macro menu — no browser switc
 ## Requirements
 
 - Microsoft Outlook (desktop, Windows)
-- Access to **ExpertGPT** (`expertgpt.intel.com`) with a valid `pak_` API key
+- An API key from either of the following Intel AI gateways:
+  - **ExpertGPT** (`expertgpt.intel.com`) — keys start with `pak_`
+  - **GNAI** (`gnai.intel.com`) — any non-`pak_` key
 - Macros must be enabled in Outlook
 
 ---
@@ -59,8 +61,8 @@ Select any email and trigger AI actions from the macro menu — no browser switc
 
 | Setting | Details |
 |---------|---------|
-| **API Key** | Must start with `pak_`. Stored in Windows Registry. |
-| **Model** | Selected from live model list fetched from ExpertGPT. Supports OpenAI and Anthropic (Claude) models. |
+| **API Key** | ExpertGPT key (starts with `pak_`) **or** GNAI key. Stored in Windows Registry. |
+| **Model** | Selected from live model list fetched from the matching gateway. Supports OpenAI and Anthropic (Claude) models. |
 | **FAQ Folder** | Default path: `My Folders\FAQ`. Change `FAQ_FOLDER_PATH` constant in the source. |
 | **Timeout** | OpenAI: 20 s · Anthropic: 120 s |
 

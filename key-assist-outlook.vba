@@ -5,6 +5,8 @@ Private Const APP_NAME As String = "ExpertGPTEmailAssistant"
 Private Const SETTINGS_SECTION As String = "Settings"
 Private Const OPENAI_BASE_URL As String = "https://expertgpt.intel.com/v1"
 Private Const ANTHROPIC_BASE_URL As String = "https://expertgpt.intel.com/anthropic/v1"
+Private Const GNAI_OPENAI_BASE_URL As String = "https://gnai.intel.com/api/providers/openai/v1"
+Private Const GNAI_ANTHROPIC_BASE_URL As String = "https://gnai.intel.com/api/providers/anthropic"
 Private Const ANTHROPIC_API_VERSION As String = "2023-06-01"
 Private Const REQUEST_TIMEOUT_MS As Long = 20000
 Private Const ANTHROPIC_REQUEST_TIMEOUT_MS As Long = 120000
@@ -446,9 +448,9 @@ Sub ExpertGPT_Configure()
     End If
 
     If ShowConfigurationForm(apiKey, selectedModel) Then
-        MsgBox "ExpertGPT settings saved. Model selected: " & selectedModel, vbInformation, "ExpertGPT"
+        MsgBox "Settings saved. Model selected: " & selectedModel, vbInformation, "Key Assist"
     Else
-        MsgBox "Configuration was cancelled. Model selected: " & selectedModel, vbInformation, "ExpertGPT"
+        MsgBox "Configuration was cancelled. Model selected: " & selectedModel, vbInformation, "Key Assist"
     End If
     Exit Sub
 
@@ -478,7 +480,7 @@ Private Function ShowConfigurationForm(ByRef apiKey As String, ByRef selectedMod
     inputModel = Trim$(parts(1))
 
     If Not IsValidApiKey(inputKey) Then
-        MsgBox "API key must start with pak_.", vbExclamation, "ExpertGPT"
+        MsgBox "Please enter a valid API key (ExpertGPT pak_ or GNAI).", vbExclamation, "ExpertGPT"
         Exit Function
     End If
 
@@ -549,6 +551,8 @@ Private Function BuildConfigurationFormScript(ByVal defaultApiKey As String, ByV
     Dim outputEscaped As String
     Dim openaiEscaped As String
     Dim anthropicEscaped As String
+    Dim gnaiOpenaiEscaped As String
+    Dim gnaiAnthropicEscaped As String
     Dim defaultModelIdEscaped As String
 
     defaultKeyEscaped = EscapeForPowerShellSingleQuoted(defaultApiKey)
@@ -556,6 +560,8 @@ Private Function BuildConfigurationFormScript(ByVal defaultApiKey As String, ByV
     outputEscaped = EscapeForPowerShellSingleQuoted(outputPath)
     openaiEscaped = EscapeForPowerShellSingleQuoted(OPENAI_BASE_URL)
     anthropicEscaped = EscapeForPowerShellSingleQuoted(ANTHROPIC_BASE_URL)
+    gnaiOpenaiEscaped = EscapeForPowerShellSingleQuoted(GNAI_OPENAI_BASE_URL)
+    gnaiAnthropicEscaped = EscapeForPowerShellSingleQuoted(GNAI_ANTHROPIC_BASE_URL)
     defaultModelIdEscaped = EscapeForPowerShellSingleQuoted(DEFAULT_MODEL)
 
     lines = "$ErrorActionPreference = 'Stop'" & vbCrLf
@@ -563,6 +569,8 @@ Private Function BuildConfigurationFormScript(ByVal defaultApiKey As String, ByV
     lines = lines & "Add-Type -AssemblyName System.Drawing" & vbCrLf
     lines = lines & "$openaiBase = '" & openaiEscaped & "'" & vbCrLf
     lines = lines & "$anthropicBase = '" & anthropicEscaped & "'" & vbCrLf
+    lines = lines & "$gnaiOpenaiBase = '" & gnaiOpenaiEscaped & "'" & vbCrLf
+    lines = lines & "$gnaiAnthropicBase = '" & gnaiAnthropicEscaped & "'" & vbCrLf
     lines = lines & "$defaultModelId = '" & defaultModelIdEscaped & "'" & vbCrLf
     lines = lines & "$form = New-Object System.Windows.Forms.Form" & vbCrLf
     lines = lines & "$form.Text = 'ExpertGPT Configuration'" & vbCrLf
@@ -572,7 +580,7 @@ Private Function BuildConfigurationFormScript(ByVal defaultApiKey As String, ByV
     lines = lines & "$form.MaximizeBox = $false" & vbCrLf
     lines = lines & "$form.TopMost = $true" & vbCrLf
     lines = lines & "$labelKey = New-Object System.Windows.Forms.Label" & vbCrLf
-    lines = lines & "$labelKey.Text = 'API Key:  (starts with pak_)'" & vbCrLf
+    lines = lines & "$labelKey.Text = 'API Key:  (ExpertGPT pak_ or GNAI)'" & vbCrLf
     lines = lines & "$labelKey.Location = New-Object System.Drawing.Point(20, 20)" & vbCrLf
     lines = lines & "$labelKey.AutoSize = $true" & vbCrLf
     lines = lines & "$txtKey = New-Object System.Windows.Forms.TextBox" & vbCrLf
@@ -606,28 +614,41 @@ Private Function BuildConfigurationFormScript(ByVal defaultApiKey As String, ByV
     lines = lines & "if (-not [string]::IsNullOrWhiteSpace($initialModel)) { $initialModel = $initialModel.Trim() }" & vbCrLf
     lines = lines & "function Fill-ModelList([string]$apiKey) {" & vbCrLf
     lines = lines & "  $combo.Items.Clear(); $modelMap.Clear()" & vbCrLf
-    lines = lines & "  if ([string]::IsNullOrWhiteSpace($apiKey) -or -not $apiKey.StartsWith('pak_')) {" & vbCrLf
+    lines = lines & "  if ([string]::IsNullOrWhiteSpace($apiKey)) {" & vbCrLf
     lines = lines & "    $modelIdToShow = $defaultModelId" & vbCrLf
     lines = lines & "    if (-not [string]::IsNullOrWhiteSpace($initialModel)) { $modelIdToShow = $initialModel }" & vbCrLf
     lines = lines & "    $display = ""$modelIdToShow (0/0)""" & vbCrLf
     lines = lines & "    $null = $combo.Items.Add($display); $modelMap[$display] = $modelIdToShow; $combo.SelectedIndex = 0; $labelModel.Text = ""Model:  ($($modelMap.Count) models loaded)""; return" & vbCrLf
     lines = lines & "  }" & vbCrLf
+    lines = lines & "  $isGnai = -not $apiKey.StartsWith('pak_')" & vbCrLf
+    lines = lines & "  $openaiUrl = if ($isGnai) { $gnaiOpenaiBase } else { $openaiBase }" & vbCrLf
+    lines = lines & "  $anthropicModelsUrl = if ($isGnai) { $gnaiAnthropicBase + '/v1/models' } else { $anthropicBase + '/models' }" & vbCrLf
     lines = lines & "  $headers = @{ Authorization = ""Bearer $apiKey""; 'Content-Type' = 'application/json' }" & vbCrLf
     lines = lines & "  $quotaMap = @{}" & vbCrLf
-    lines = lines & "  try {" & vbCrLf
-    lines = lines & "    $q = Invoke-RestMethod -Method Get -Uri ($openaiBase + '/quota') -Headers $headers -TimeoutSec 20" & vbCrLf
-    lines = lines & "    if ($q -and $q.model_quotas) { $q.model_quotas.PSObject.Properties | ForEach-Object { $quotaMap[$_.Name] = $_.Value } }" & vbCrLf
-    lines = lines & "  } catch {}" & vbCrLf
+    lines = lines & "  if (-not $isGnai) {" & vbCrLf
+    lines = lines & "    try {" & vbCrLf
+    lines = lines & "      $q = Invoke-RestMethod -Method Get -Uri ($openaiUrl + '/quota') -Headers $headers -TimeoutSec 20" & vbCrLf
+    lines = lines & "      if ($q -and $q.model_quotas) { $q.model_quotas.PSObject.Properties | ForEach-Object { $quotaMap[$_.Name] = $_.Value } }" & vbCrLf
+    lines = lines & "    } catch {}" & vbCrLf
+    lines = lines & "  }" & vbCrLf
     lines = lines & "  $openaiModels = New-Object System.Collections.ArrayList" & vbCrLf
     lines = lines & "  $anthropicModels = New-Object System.Collections.ArrayList" & vbCrLf
     lines = lines & "  try {" & vbCrLf
-    lines = lines & "    $m = Invoke-RestMethod -Method Get -Uri ($openaiBase + '/models') -Headers $headers -TimeoutSec 20" & vbCrLf
+    lines = lines & "    $m = Invoke-RestMethod -Method Get -Uri ($openaiUrl + '/models') -Headers $headers -TimeoutSec 20" & vbCrLf
     lines = lines & "    if ($m -and $m.data) { foreach ($x in $m.data) { if ($x.id) { $null = $openaiModels.Add([string]$x.id) } } }" & vbCrLf
     lines = lines & "  } catch {}" & vbCrLf
     lines = lines & "  try {" & vbCrLf
-    lines = lines & "    $m = Invoke-RestMethod -Method Get -Uri ($anthropicBase + '/models') -Headers $headers -TimeoutSec 20" & vbCrLf
+    lines = lines & "    $m = Invoke-RestMethod -Method Get -Uri $anthropicModelsUrl -Headers $headers -TimeoutSec 20" & vbCrLf
     lines = lines & "    if ($m -and $m.data) { foreach ($x in $m.data) { if ($x.id) { $null = $anthropicModels.Add([string]$x.id) } } }" & vbCrLf
     lines = lines & "  } catch {}" & vbCrLf
+    lines = lines & "  if ($isGnai) {" & vbCrLf
+    lines = lines & "    if ($openaiModels.Count -eq 0) {" & vbCrLf
+    lines = lines & "      foreach ($id in @('gpt-4o','gpt-4.1','gpt-5-mini','gpt-5-nano','o3-mini')) { $null = $openaiModels.Add($id) }" & vbCrLf
+    lines = lines & "    }" & vbCrLf
+    lines = lines & "    if ($anthropicModels.Count -eq 0) {" & vbCrLf
+    lines = lines & "      foreach ($id in @('claude-4-6-opus','claude-4-6-sonnet','claude-4-5-opus','claude-4-5-sonnet','claude-4-5-haiku')) { $null = $anthropicModels.Add($id) }" & vbCrLf
+    lines = lines & "    }" & vbCrLf
+    lines = lines & "  }" & vbCrLf
     lines = lines & "  $seen = @{}" & vbCrLf
     lines = lines & "  function Add-ModelGroup([string]$groupName, [System.Collections.ArrayList]$models) {" & vbCrLf
     lines = lines & "    if (-not $models -or $models.Count -eq 0) { return }" & vbCrLf
@@ -641,7 +662,7 @@ Private Function BuildConfigurationFormScript(ByVal defaultApiKey As String, ByV
     lines = lines & "        try { $used = [int]$quotaMap[$id].used } catch {}" & vbCrLf
     lines = lines & "        try { $limit = [int]$quotaMap[$id].limit } catch {}" & vbCrLf
     lines = lines & "      }" & vbCrLf
-    lines = lines & "      $display = ""$id ($used/$limit)""" & vbCrLf
+    lines = lines & "      $display = if ($isGnai) { ""$id"" } else { ""$id ($used/$limit)"" }" & vbCrLf
     lines = lines & "      $null = $combo.Items.Add($display)" & vbCrLf
     lines = lines & "      $modelMap[$display] = $id" & vbCrLf
     lines = lines & "    }" & vbCrLf
@@ -691,9 +712,10 @@ Private Function BuildConfigurationFormScript(ByVal defaultApiKey As String, ByV
     lines = lines & "  }" & vbCrLf
     lines = lines & "})" & vbCrLf
     lines = lines & "$btnLoad.Add_Click({ Fill-ModelList($txtKey.Text.Trim()) })" & vbCrLf
+    lines = lines & "$txtKey.Add_Leave({ Fill-ModelList($txtKey.Text.Trim()) })" & vbCrLf
     lines = lines & "$okBtn.Add_Click({" & vbCrLf
     lines = lines & "  $k = $txtKey.Text.Trim()" & vbCrLf
-    lines = lines & "  if ([string]::IsNullOrWhiteSpace($k) -or -not $k.StartsWith('pak_')) { [System.Windows.Forms.MessageBox]::Show('API key must start with pak_.','ExpertGPT',[System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null; return }" & vbCrLf
+    lines = lines & "  if ([string]::IsNullOrWhiteSpace($k)) { [System.Windows.Forms.MessageBox]::Show('Please enter a valid API key (ExpertGPT pak_ or GNAI).','ExpertGPT',[System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null; return }" & vbCrLf
     lines = lines & "  if ($combo.SelectedIndex -lt 0) { [System.Windows.Forms.MessageBox]::Show('Please select a model.','ExpertGPT',[System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null; return }" & vbCrLf
     lines = lines & "  $display = [string]$combo.SelectedItem" & vbCrLf
     lines = lines & "  if (-not $modelMap.ContainsKey($display)) { [System.Windows.Forms.MessageBox]::Show('Please select a model.','ExpertGPT',[System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null; return }" & vbCrLf
@@ -731,9 +753,9 @@ Sub ExpertGPT_RefreshModelSelection()
     End If
 
     If ShowConfigurationForm(apiKey, selectedModel) Then
-        MsgBox "Model selected: " & selectedModel, vbInformation, "ExpertGPT"
+        MsgBox "Model selected: " & selectedModel, vbInformation, "Key Assist"
     Else
-        MsgBox "Configuration was cancelled. Model selected: " & selectedModel, vbInformation, "ExpertGPT"
+        MsgBox "Configuration was cancelled. Model selected: " & selectedModel, vbInformation, "Key Assist"
     End If
     Exit Sub
 
@@ -856,7 +878,22 @@ Private Sub SaveSelectedModel(ByVal modelName As String)
 End Sub
 
 Private Function IsValidApiKey(ByVal apiKey As String) As Boolean
-    IsValidApiKey = (Len(apiKey) > 8 And Left$(apiKey, 4) = "pak_")
+    Dim trimmed As String
+    trimmed = Trim$(apiKey)
+    If Len(trimmed) = 0 Then
+        IsValidApiKey = False
+    ElseIf Left$(trimmed, 4) = "pak_" Then
+        IsValidApiKey = (Len(trimmed) > 8)
+    Else
+        ' GNAI key (non-pak_): accept any non-empty value
+        IsValidApiKey = True
+    End If
+End Function
+
+Private Function IsGnaiKey(ByVal apiKey As String) As Boolean
+    Dim trimmed As String
+    trimmed = Trim$(apiKey)
+    IsGnaiKey = (Len(trimmed) > 0 And Left$(trimmed, 4) <> "pak_")
 End Function
 
 Private Function NormalizeApiKey(ByVal rawValue As String) As String
@@ -922,12 +959,23 @@ Private Function ProcessWithExpertGPT(ByVal emailContent As String, ByVal userPr
     cleanedModelName = NormalizeModelName(modelName)
 
     If IsAnthropicModel(cleanedModelName) Then
-        endpoint = ANTHROPIC_BASE_URL & "/messages"
-        payload = BuildAnthropicPayload(emailContent, userPrompt, cleanedModelName)
-        responseText = SendHttpRequest("POST", endpoint, apiKey, payload, ANTHROPIC_API_VERSION, ANTHROPIC_REQUEST_TIMEOUT_MS)
+        If IsGnaiKey(apiKey) Then
+            endpoint = GNAI_ANTHROPIC_BASE_URL & "/v1/messages"
+            payload = BuildAnthropicPayload(emailContent, userPrompt, cleanedModelName)
+            ' GNAI gateway does not require anthropic-version header
+            responseText = SendHttpRequest("POST", endpoint, apiKey, payload, "", ANTHROPIC_REQUEST_TIMEOUT_MS)
+        Else
+            endpoint = ANTHROPIC_BASE_URL & "/messages"
+            payload = BuildAnthropicPayload(emailContent, userPrompt, cleanedModelName)
+            responseText = SendHttpRequest("POST", endpoint, apiKey, payload, ANTHROPIC_API_VERSION, ANTHROPIC_REQUEST_TIMEOUT_MS)
+        End If
         content = ParseAnthropicContent(responseText)
     Else
-        endpoint = OPENAI_BASE_URL & "/chat/completions"
+        If IsGnaiKey(apiKey) Then
+            endpoint = GNAI_OPENAI_BASE_URL & "/chat/completions"
+        Else
+            endpoint = OPENAI_BASE_URL & "/chat/completions"
+        End If
         payload = BuildChatPayload(emailContent, userPrompt, cleanedModelName)
         responseText = SendHttpRequest("POST", endpoint, apiKey, payload)
         content = ParseChatContent(responseText)
@@ -956,9 +1004,19 @@ End Function
 Private Function BuildChatPayload(ByVal emailContent As String, ByVal userPrompt As String, ByVal modelName As String) As String
     Dim systemPrompt As String
     Dim userContent As String
+    Dim tokenPart As String
+    Dim lowered As String
 
     systemPrompt = "You are a helpful email assistant. Process the email content according to the user's instruction. Provide clear, concise, and well-formatted responses. Use plain text format with line breaks for readability."
     userContent = "Instruction: " & userPrompt & vbCrLf & vbCrLf & "Email Content:" & vbCrLf & emailContent
+
+    ' Reasoning models (gpt-5*, o-series) require max_completion_tokens and reject temperature
+    lowered = LCase$(Trim$(modelName))
+    If Left$(lowered, 5) = "gpt-5" Or (Len(lowered) >= 2 And Left$(lowered, 1) = "o" And IsNumeric(Mid$(lowered, 2, 1))) Then
+        tokenPart = """max_completion_tokens"":2000"
+    Else
+        tokenPart = """temperature"":0.7,""max_tokens"":2000"
+    End If
 
     BuildChatPayload = _
         "{" & _
@@ -968,8 +1026,7 @@ Private Function BuildChatPayload(ByVal emailContent As String, ByVal userPrompt
             "{""role"":""user"",""content"":""" & JsonEscape(userContent) & """}" & _
         "]," & _
         """stream"":false," & _
-        """temperature"":0.7," & _
-        """max_tokens"":2000" & _
+        tokenPart & _
         "}"
 End Function
 
